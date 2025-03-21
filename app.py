@@ -1,11 +1,11 @@
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import requests
 import logging
+from datetime import datetime
 
 # Настройка логирования
 logging.basicConfig(
@@ -16,24 +16,24 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
+# Подключаем статические файлы и шаблоны
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="templates")
+
 # Настройка CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Разрешаем все источники для разработки
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Разрешаем все методы
-    allow_headers=["*"],  # Разрешаем все заголовки
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
-
-# Монтирование статических файлов и шаблонов
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
 
 class ChatMessage(BaseModel):
     message: str
 
-@app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
+@app.get("/")
+async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 @app.post("/chat")
@@ -41,13 +41,27 @@ async def chat(message: ChatMessage):
     try:
         logger.info(f"Получен запрос: {message.message}")
         
-        # Отправляем запрос к вашему API
+        # Проверяем специальную команду
+        if message.message.lower() == "test":
+            try:
+                response = requests.get(
+                    "http://localhost:3333/test",
+                    timeout=5
+                )
+                if response.status_code == 200:
+                    return {"response": "✅ API сервер работает!"}
+                else:
+                    return {"response": "❌ API сервер недоступен"}
+            except:
+                return {"response": "❌ API сервер недоступен"}
+        
+        # Отправляем запрос к локальному API
         logger.info("Отправляем запрос к API...")
         response = requests.post(
-            "http://192.168.1.7:3333/chat",
+            "http://localhost:3333/chat",  # Изменено на localhost
             json={"message": message.message},
             headers={"Content-Type": "application/json"},
-            timeout=60  # Увеличиваем таймаут до 60 секунд
+            timeout=60
         )
         
         logger.info(f"Статус ответа API: {response.status_code}")
@@ -68,4 +82,8 @@ async def chat(message: ChatMessage):
         return {"response": "Не удалось подключиться к API. Проверьте доступность сервера."}
     except Exception as e:
         logger.error(f"Ошибка: {str(e)}")
-        return {"response": "Произошла ошибка при обработке запроса"} 
+        return {"response": "Произошла ошибка при обработке запроса"}
+
+@app.get("/test")
+async def test():
+    return {"status": "ok", "message": "Сервер работает!"} 
