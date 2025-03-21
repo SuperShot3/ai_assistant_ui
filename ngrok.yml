@@ -1,0 +1,9 @@
+version: "2"
+authtoken: 2uE5wEtiItnka9BVEc6px0rQMgW_7
+tunnels:
+  app:
+    proto: http
+    addr: 8000
+  web:
+    proto: http
+    addr: 80 
